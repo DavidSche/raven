@@ -24,6 +24,7 @@ verifier:
 system:
   source: "rtsp://admin:test667788@192.168.150.133:554/video1"
   show_ui: true
+  port: 8000
 
 logging:
   level: "INFO"

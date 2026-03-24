@@ -40,6 +40,7 @@ class VerifierConfig(BaseModel):
 class SystemConfig(BaseModel):
     show_ui: bool
     source: str = "0" # Default to webcam
+    port:int =8000
 
 class PipelineRuntimeConfig(BaseModel):
     """Pipeline 运行时配置，对应 config/settings.yaml 中的 pipeline: 节。"""
