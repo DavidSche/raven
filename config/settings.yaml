@@ -22,7 +22,6 @@ verifier:
   threshold: 0.00005  # bbox 中心点位移方差阈值（轻量模式，无 MediaPipe 依赖）
 
 system:
-  log_level: "INFO"
   source: "rtsp://admin:test667788@192.168.150.133:554/video1"
   show_ui: true
 
@@ -38,3 +37,18 @@ logging:
   performance:
     log_fps_interval: 30
     log_inference_time: true
+
+pipeline:
+  # AI 能力开关（单路默认值，多路时可在代码中按路覆盖）
+  enable_detector: true
+  enable_tracker: false
+  enable_verifier: false
+
+  # 帧队列策略
+  drop_frames: true
+  frame_queue_size: 2
+  result_queue_size: 1
+
+  # RTSP 重连策略（指数退避，最大 30s）
+  reconnect: true
+  max_retries: -1       # -1 = 无限重试

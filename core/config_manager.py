@@ -38,9 +38,19 @@ class VerifierConfig(BaseModel):
     threshold: float = Field(ge=0.0, description="位移方差阈值")
 
 class SystemConfig(BaseModel):
-    log_level: str
     show_ui: bool
     source: str = "0" # Default to webcam
+
+class PipelineRuntimeConfig(BaseModel):
+    """Pipeline 运行时配置，对应 config/settings.yaml 中的 pipeline: 节。"""
+    enable_detector: bool = True
+    enable_tracker: bool = True
+    enable_verifier: bool = True
+    drop_frames: bool = True
+    frame_queue_size: int = Field(ge=1, le=32, default=2)
+    result_queue_size: int = Field(ge=1, le=16, default=1)
+    reconnect: bool = True
+    max_retries: int = -1  # -1 = 无限重试
 
 class GlobalConfig(BaseModel):
     model: ModelConfig
@@ -48,6 +58,7 @@ class GlobalConfig(BaseModel):
     verifier: VerifierConfig
     system: SystemConfig
     logging: LoggingConfig = LoggingConfig()
+    pipeline: PipelineRuntimeConfig = PipelineRuntimeConfig()
 
 class ConfigManager:
     _config: GlobalConfig = None
@@ -58,7 +69,7 @@ class ConfigManager:
         Loads the YAML configuration and validates it using Pydantic.
         """
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+            raise FileNotFoundError(f"目录下没有对应的配置文件 settings.yaml，请检查: {config_path}")
 
         with open(config_path, "r", encoding="utf-8") as f:
             raw_config = yaml.safe_load(f)

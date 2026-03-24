@@ -2,7 +2,8 @@ import cv2
 import time
 import numpy as np
 import torch
-from core.pipeline import AsyncPipeline
+from core.pipeline.manager import PipelineManager
+from core.pipeline.pipeline_config import PipelineConfig
 from core.config_manager import ConfigManager
 from core.logger import setup_logging, get_logger
 
@@ -35,17 +36,18 @@ def main():
     
     log.info(f"[主程序] 配置加载完成 | model={cfg.model.path} | imgsz={cfg.model.imgsz}")
     
-    # 2. Initialize Pipeline
-    log.info("[主程序] 初始化 Pipeline...")
+    # 2. Initialize PipelineManager
+    log.info("[主程序] 初始化 PipelineManager...")
     source = cfg.system.source
     # Handle int or str (RTSP/File)
     try:
         source = int(source)
-    except:
+    except Exception:
         pass
-        
-    pipeline = AsyncPipeline(video_source=source, drop_frames=(not isinstance(source, int)))
-    pipeline.start()
+
+    manager = PipelineManager()
+    manager.add_rtsp("main", source, PipelineConfig.from_global_config())
+    pipeline = manager.get_single_pipeline()
     
     log.success("Human Detection System v2 (Production Ready)")
     log.info(f"Model: {cfg.model.path} | Imgsz: {cfg.model.imgsz}")
@@ -151,7 +153,7 @@ def main():
         log.error(f"[主程序] 运行异常: {e}", exc_info=True)
     finally:
         log.info("[主程序] >>> 开始清理资源")
-        pipeline.stop()
+        manager.shutdown()
         cv2.destroyAllWindows()
         log.success("[主程序] <<< 程序已退出")
 

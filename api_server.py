@@ -1,25 +1,27 @@
 import cv2
 import base64
-import threading
 import time
 import torch
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from core.pipeline import AsyncPipeline
+from core.pipeline.manager import PipelineManager
+from core.pipeline.pipeline_config import PipelineConfig
 from core.config_manager import ConfigManager
 from core.logger import setup_logging, get_logger
 import uvicorn
-import json
 import asyncio
 
 log = get_logger("api")
 
 WEB_DIR = Path(__file__).parent / "web"
 
-pipeline: AsyncPipeline = None
+manager: PipelineManager = None
+pipeline: AsyncPipeline = None   # 始终指向 manager 的第一路流，供旧接口使用
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,18 +55,19 @@ async def lifespan(app: FastAPI):
     except:
         pass
     
-    log.info(f"[API服务] 初始化 Pipeline | source={source}")
-    pipeline = AsyncPipeline(video_source=source)
-    pipeline.start()
+    log.info(f"[API服务] 初始化 PipelineManager | source={source}")
+    manager = PipelineManager()
+    manager.add_rtsp("default", source, PipelineConfig.from_global_config())
+    pipeline = manager.get_single_pipeline()
     
     log.success("[API服务] <<< 服务启动完成")
     
     yield
     
     log.info("[API服务] >>> 服务关闭中...")
-    if pipeline:
-        pipeline.stop()
-        log.success("[API服务] Pipeline 已停止")
+    if manager:
+        manager.shutdown()
+        log.success("[API服务] PipelineManager 已关闭")
     log.success("[API服务] <<< 服务已关闭")
 
 app = FastAPI(title="Human Detection API", version="2.0", lifespan=lifespan)
@@ -203,25 +206,61 @@ def video_feed():
 
 @app.post("/change_source")
 def change_video_source(new_source: str):
-    """动态切换视频源。"""
+    """动态切换默认视频源（热重启 default 流）。"""
     global pipeline
-    
     log.info(f"[API端点] POST /change_source | new_source={new_source}")
-    
     try:
         final_source = int(new_source)
-    except:
+    except Exception:
         final_source = new_source
-    
-    log.info(f"[API端点] 切换视频源: {final_source}")
-    
-    pipeline.stop()
-    pipeline = AsyncPipeline(video_source=final_source)
-    pipeline.start()
-    
+    ok = manager.update_config(
+        "default",
+        PipelineConfig.from_global_config(),
+    )
+    if not ok:
+        # default 流不存在时直接新建
+        manager.add_rtsp("default", final_source, PipelineConfig.from_global_config())
+    else:
+        # 已重建，但源地址以 new_source 为准 —— 直接 remove+add
+        manager.remove_rtsp("default")
+        manager.add_rtsp("default", final_source, PipelineConfig.from_global_config())
+    pipeline = manager.get_single_pipeline()
     log.success(f"[API端点] 视频源切换完成: {final_source}")
-    
     return {"status": "success", "new_source": str(final_source)}
+
+
+# ─── 多流管理端点（新增）───────────────────────────────
+
+class StreamAddRequest(BaseModel):
+    stream_id: str
+    url: str
+    enable_tracker: bool  = True
+    enable_verifier: bool = True
+
+
+@app.post("/streams/add", summary="动态添加一路流")
+def stream_add(req: StreamAddRequest):
+    cfg = PipelineConfig(
+        enable_tracker=req.enable_tracker,
+        enable_verifier=req.enable_verifier,
+    )
+    ok = manager.add_rtsp(req.stream_id, req.url, cfg)
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"stream_id '{req.stream_id}' 已存在")
+    return {"status": "ok", "stream_id": req.stream_id}
+
+
+@app.post("/streams/remove/{stream_id}", summary="移除一路流")
+def stream_remove(stream_id: str):
+    ok = manager.remove_rtsp(stream_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"stream_id '{stream_id}' 不存在")
+    return {"status": "ok", "stream_id": stream_id}
+
+
+@app.get("/streams/status", summary="所有流性能统计")
+def streams_status():
+    return {"streams": manager.get_status()}
 
 @app.get("/results")
 def get_latest_results():
