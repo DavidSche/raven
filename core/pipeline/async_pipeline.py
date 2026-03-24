@@ -412,10 +412,9 @@ class AsyncPipeline:
                     )
 
                     for i, box in enumerate(results.boxes):
-                        if box.id is None:
-                            continue
                         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                        track_id = int(box.id[0].cpu().numpy())
+                        # 如果 tracker 未启用，box.id 可能为 None，分配临时 i 作为 track_id
+                        track_id = int(box.id[0].cpu().numpy()) if box.id is not None else i
                         mask_points = masks[i] if masks is not None and i < len(masks) else None
 
                         # ── Step 3：活体验证（可选）──

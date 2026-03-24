@@ -282,4 +282,5 @@ def health_check():
 
 if __name__ == "__main__":
     log.info("[API服务] 启动目标检测服务器")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    cfg = ConfigManager.load_config()
+    uvicorn.run(app, host="0.0.0.0", port= cfg.system.port)
