@@ -1,0 +1,40 @@
+# 系统全局配置文件
+
+model:
+  # 支持三种格式，直接修改 path 即可切换，无需改代码：
+  #   .pt     原生 PyTorch 权重，通用，支持所有功能
+  #   .onnx   ONNX 格式，跨平台部署，CPU/GPU 均可，需安装 onnxruntime
+  #   .engine TensorRT 引擎，仅 NVIDIA GPU，推理最快；imgsz/half 在导出时已固定，此处设置会被忽略
+  path: "models/yolo26s.engine"
+  imgsz: 640              # .engine 格式此项无效（导出时已固定）
+  conf: 0.5
+  classes: [0]            # 默认只检测人类 (class 0)
+  half: true              # .engine 格式此项无效（导出时已固定）；.onnx 在 CPU 上无效
+  segmentation: false     # true=实例分割(需要 -seg 模型), false=纯检测模式(更快)
+
+tracker:
+  type: "config/bytetrack.yaml"  # 自定义配置，track_buffer=90 抗遮挡，减少 ID 漂移
+  conf: 0.45          # 追踪置信度阈值，接近 model.conf，避免低置信度轨迹池产生双框
+  persist: true
+
+verifier:
+  history_size: 15    # 活体检测滑动窗口大小
+  threshold: 0.00005  # bbox 中心点位移方差阈值（轻量模式，无 MediaPipe 依赖）
+
+system:
+  log_level: "INFO"
+  source: "rtsp://admin:test667788@192.168.150.133:554/video1"
+  show_ui: true
+
+logging:
+  level: "INFO"
+  console_enabled: true
+  file:
+    enabled: true
+    path: "logs"
+    rotation: "10 MB"
+    retention: "7 days"
+    compression: "zip"
+  performance:
+    log_fps_interval: 30
+    log_inference_time: true

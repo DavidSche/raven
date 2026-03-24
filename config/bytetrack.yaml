@@ -1,0 +1,7 @@
+tracker_type: bytetrack
+track_high_thresh: 0.45   # 与 tracker.conf 保持一致，避免低置信度轨迹干扰
+track_low_thresh: 0.1
+new_track_thresh: 0.5     # 提高新轨迹门槛，减少误检产生的新 ID
+track_buffer: 90          # 目标消失 90 帧（约 3 秒@30fps）内保持 ID，抗遮挡/出画
+match_thresh: 0.8
+fuse_score: true

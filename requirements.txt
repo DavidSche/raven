@@ -1,0 +1,11 @@
+fastapi==0.135.2
+loguru==0.7.3
+numpy==2.4.3
+opencv_python==4.13.0.92
+psutil==7.2.2
+pydantic==2.12.5
+PyYAML==6.0.3
+tensorrt==8.6.1
+torch==2.5.1+cu121
+ultralytics==8.4.24
+uvicorn==0.42.0
