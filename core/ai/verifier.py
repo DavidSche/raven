@@ -1,3 +1,11 @@
+"""
+core/ai/verifier.py
+
+活体验证器模块，负责处理视频流中的目标活体验证。
+支持基于 bbox 中心点位移方差的轻量活体检测。
+完全移除 MediaPipe Pose，用 bbox 中心点轨迹替代，降低 CPU 占用，无内部状态累积。
+
+"""
 import numpy as np
 from collections import deque
 from core.config_manager import ConfigManager
@@ -28,7 +36,7 @@ class HumanVerifier:
         self.history = {}
         self._last_seen = {}
         self._frame_count = 0
-        self._cleanup_interval = 1000
+        self._cleanup_interval = 300
         
         log.debug(f"[活体验证] 参数: history_size={self.history_size}, threshold={self.threshold}")
         log.success("[活体验证] <<< 初始化完成")

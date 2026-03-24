@@ -12,7 +12,7 @@ PipelineManager — 工业级Pipeline管理器
 import threading
 from typing import Dict, List, Optional
 from core.pipeline.multi_stream import MultiStreamPipeline
-from core.pipeline.pipeline_config import PipelineConfig
+from core.config_manager import PipelineConfig
 from core.pipeline.async_pipeline import AsyncPipeline
 from core.logger import get_logger
 
@@ -38,6 +38,7 @@ class PipelineManager:
         self.multi = MultiStreamPipeline()
         self.stream_configs: Dict[str, PipelineConfig] = {}
         self.stream_sources: Dict[str, str]            = {}
+        self.stream_states: Dict[str, str]             = {}
         self.lock = threading.Lock()
 
     # ─────────────────────────────────────────
@@ -56,6 +57,7 @@ class PipelineManager:
             if ok:
                 self.stream_configs[stream_id] = config
                 self.stream_sources[stream_id] = str(url)
+                self.stream_states[stream_id]  = "CONNECTING"
                 log.success(f"[管理器] 添加成功: {stream_id}")
             return ok
 
@@ -66,6 +68,7 @@ class PipelineManager:
             if ok:
                 self.stream_configs.pop(stream_id, None)
                 self.stream_sources.pop(stream_id, None)
+                self.stream_states.pop(stream_id, None)
                 log.success(f"[管理器] 移除成功: {stream_id}")
             return ok
 
@@ -89,6 +92,7 @@ class PipelineManager:
             ok = self.multi.add_stream(stream_id, source, new_config)
             if ok:
                 self.stream_configs[stream_id] = new_config
+                self.stream_states[stream_id]  = "CONNECTING"
                 log.success(f"[管理器] 配置热更新完成: {stream_id}")
             return ok
 
@@ -135,6 +139,8 @@ class PipelineManager:
             if pipeline is not None:
                 stats = pipeline.get_performance_stats()
                 stats["source"] = self.stream_sources.get(sid, "")
+                self.stream_states[sid] = stats.get("stream_state", "unknown")
+                stats["manager_state"] = self.stream_states[sid]
                 status[sid] = stats
         return status
 

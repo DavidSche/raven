@@ -9,9 +9,9 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from core.pipeline import AsyncPipeline
+from core.pipeline import AsyncPipeline
 from core.pipeline.manager import PipelineManager
-from core.pipeline.pipeline_config import PipelineConfig
-from core.config_manager import ConfigManager
+from core.config_manager import ConfigManager, PipelineConfig
 from core.logger import setup_logging, get_logger
 import uvicorn
 import asyncio
@@ -20,14 +20,9 @@ log = get_logger("api")
 
 WEB_DIR = Path(__file__).parent / "web"
 
-manager: PipelineManager = None
-pipeline: AsyncPipeline = None   # 始终指向 manager 的第一路流，供旧接口使用
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理，处理启动和停止事件."""
-    global pipeline
-    
     log.info("[API服务] >>> 服务启动中...")
     
     # 主线程提前初始化 CUDA context，避免子线程竞争
@@ -57,16 +52,16 @@ async def lifespan(app: FastAPI):
     
     log.info(f"[API服务] 初始化 PipelineManager | source={source}")
     manager = PipelineManager()
-    manager.add_rtsp("default", source, PipelineConfig.from_global_config())
-    pipeline = manager.get_single_pipeline()
+    manager.add_rtsp("default", source, ConfigManager.get_config().pipeline)
+    app.state.manager = manager
     
     log.success("[API服务] <<< 服务启动完成")
     
     yield
     
     log.info("[API服务] >>> 服务关闭中...")
-    if manager:
-        manager.shutdown()
+    if hasattr(app.state, "manager"):
+        app.state.manager.shutdown()
         log.success("[API服务] PipelineManager 已关闭")
     log.success("[API服务] <<< 服务已关闭")
 
@@ -128,8 +123,17 @@ async def websocket_endpoint(websocket: WebSocket):
     SEND_INTERVAL = 1.0 / 25
     last_send_time = 0.0
 
+    manager = websocket.app.state.manager
+    pipeline = manager.get_single_pipeline()
+
     try:
         while True:
+            # 兼容：如果流中途被换或者刚启动
+            if pipeline is None:
+                await asyncio.sleep(0.1)
+                pipeline = manager.get_single_pipeline()
+                continue
+                
             now = asyncio.get_event_loop().time()
 
             # 非阻塞取最新帧，通过封装接口访问，不直接操作内部队列
@@ -137,7 +141,6 @@ async def websocket_endpoint(websocket: WebSocket):
             if frame is None or detections is None:
                 await asyncio.sleep(0.005)
                 continue
-                await asyncio.sleep(0.005)
                 continue
 
             # 控制发送频率，避免短时间内连续发多帧撑爆前端渲染队列
@@ -149,18 +152,28 @@ async def websocket_endpoint(websocket: WebSocket):
             # 图像编码（在 executor 里跑，不阻塞 event loop）
             h, w = frame.shape[:2]
             _, buffer = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                None, lambda: cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
             )
 
             # 图像和检测数据合并成一条消息发送，消除两条消息的时序错位
             img_b64 = base64.b64encode(buffer.tobytes()).decode('ascii')
-            await websocket.send_json({
+            msg = {
                 "type": "frame",
                 "frame_width": w,
                 "frame_height": h,
                 "image": img_b64,
                 "detections": _serialize_detections(detections)
-            })
+            }
+            
+            try:
+                # 工业级保护：超时发不出就丢帧，防止慢客户端拖挂服务端内存
+                await asyncio.wait_for(
+                    websocket.send_json(msg),
+                    timeout=0.1
+                )
+            except asyncio.TimeoutError:
+                log.warning("[WebSocket] 发送超时，前端渲染积压，丢弃当前帧")
+                continue
 
             frame_count += 1
             if frame_count % 100 == 0:
@@ -171,12 +184,19 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         log.error(f"[WebSocket] 连接异常: {e}")
 
-def gen_frames():
+def gen_frames(request: Request):
     """MJPEG 视频流生成器。"""
     log.debug("[视频流] 开始生成 MJPEG 流")
     frame_count = 0
     
+    manager = request.app.state.manager
+    
     while True:
+        pipeline = manager.get_single_pipeline()
+        if pipeline is None:
+            time.sleep(0.1)
+            continue
+            
         frame, detections = pipeline.get_results()
         if frame is None:
             continue
@@ -186,7 +206,7 @@ def gen_frames():
             color = (0, 255, 0) if det['is_live'] else (0, 255, 255)
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
 
-        ret, buffer = cv2.imencode('.jpg', frame)
+        ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
         if not ret:
             continue
         
@@ -198,16 +218,16 @@ def gen_frames():
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
 @app.get("/video_feed")
-def video_feed():
+def video_feed(request: Request):
     """MJPEG 视频流端点。"""
     log.debug("[API端点] GET /video_feed")
-    return StreamingResponse(gen_frames(),
+    return StreamingResponse(gen_frames(request),
                              media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.post("/change_source")
-def change_video_source(new_source: str):
+def change_video_source(request: Request, new_source: str):
     """动态切换默认视频源（热重启 default 流）。"""
-    global pipeline
+    manager = request.app.state.manager
     log.info(f"[API端点] POST /change_source | new_source={new_source}")
     try:
         final_source = int(new_source)
@@ -215,16 +235,15 @@ def change_video_source(new_source: str):
         final_source = new_source
     ok = manager.update_config(
         "default",
-        PipelineConfig.from_global_config(),
+        ConfigManager.get_config().pipeline,
     )
     if not ok:
         # default 流不存在时直接新建
-        manager.add_rtsp("default", final_source, PipelineConfig.from_global_config())
+        manager.add_rtsp("default", final_source, ConfigManager.get_config().pipeline)
     else:
         # 已重建，但源地址以 new_source 为准 —— 直接 remove+add
         manager.remove_rtsp("default")
-        manager.add_rtsp("default", final_source, PipelineConfig.from_global_config())
-    pipeline = manager.get_single_pipeline()
+        manager.add_rtsp("default", final_source, ConfigManager.get_config().pipeline)
     log.success(f"[API端点] 视频源切换完成: {final_source}")
     return {"status": "success", "new_source": str(final_source)}
 
@@ -239,7 +258,8 @@ class StreamAddRequest(BaseModel):
 
 
 @app.post("/streams/add", summary="动态添加一路流")
-def stream_add(req: StreamAddRequest):
+def stream_add(request: Request, req: StreamAddRequest):
+    manager = request.app.state.manager
     cfg = PipelineConfig(
         enable_tracker=req.enable_tracker,
         enable_verifier=req.enable_verifier,
@@ -251,7 +271,8 @@ def stream_add(req: StreamAddRequest):
 
 
 @app.post("/streams/remove/{stream_id}", summary="移除一路流")
-def stream_remove(stream_id: str):
+def stream_remove(request: Request, stream_id: str):
+    manager = request.app.state.manager
     ok = manager.remove_rtsp(stream_id)
     if not ok:
         raise HTTPException(status_code=404, detail=f"stream_id '{stream_id}' 不存在")
@@ -259,28 +280,33 @@ def stream_remove(stream_id: str):
 
 
 @app.get("/streams/status", summary="所有流性能统计")
-def streams_status():
-    return {"streams": manager.get_status()}
+def streams_status(request: Request):
+    return {"streams": request.app.state.manager.get_status()}
 
 @app.get("/results")
-def get_latest_results():
+def get_latest_results(request: Request):
     """获取最新检测结果（JSON）。"""
+    pipeline = request.app.state.manager.get_single_pipeline()
+    if pipeline is None:
+        return {"detections": []}
     _, detections = pipeline.get_results()
     log.trace(f"[API端点] GET /results | detections={len(detections) if detections else 0}")
     return {"detections": _serialize_detections(detections)}
 
 @app.get("/health")
-def health_check():
+def health_check(request: Request):
     """Health check endpoint with performance stats."""
+    manager = request.app.state.manager
+    pipeline = manager.get_single_pipeline()
     stats = pipeline.get_performance_stats() if pipeline else {}
     log.trace(f"[API端点] GET /health | processed={stats.get('processed_frames', 0)}")
     return {
         "status": "ok",
-        "gpu_available": pipeline.detector.device == "cuda" if pipeline else False,
+        "gpu_available": getattr(manager, "cuda_available", True),
         **stats,
     }
 
 if __name__ == "__main__":
     log.info("[API服务] 启动目标检测服务器")
-    cfg = ConfigManager.load_config()
+    cfg = ConfigManager.get_config()
     uvicorn.run(app, host="0.0.0.0", port= cfg.system.port)

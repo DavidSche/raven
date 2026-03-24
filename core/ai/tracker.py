@@ -1,3 +1,10 @@
+"""
+core/ai/tracker.py
+
+跟踪器模块，负责处理视频流中的目标跟踪。
+支持 ByteTrack 算法，保持一致的目标 ID 跨帧跟踪。
+"""
+
 from core.config_manager import ConfigManager
 from core.logger import get_logger
 

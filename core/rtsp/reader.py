@@ -91,7 +91,7 @@ class RtspReader:
         if not self.cap.isOpened():
             log.error(f"[数据采集] 无法打开视频源: {video_source}")
             raise Exception(f"Could not open video source: {video_source}")
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         log.success("[数据采集] 视频源已连接")
 
         self.state = StreamState.STREAMING

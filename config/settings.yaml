@@ -5,7 +5,7 @@ model:
   #   .pt     原生 PyTorch 权重，通用，支持所有功能
   #   .onnx   ONNX 格式，跨平台部署，CPU/GPU 均可，需安装 onnxruntime
   #   .engine TensorRT 引擎，仅 NVIDIA GPU，推理最快；imgsz/half 在导出时已固定，此处设置会被忽略
-  path: "models/yolo26s.engine"
+  path: "models/yolov8s.engine"
   imgsz: 640              # .engine 格式此项无效（导出时已固定）
   conf: 0.5
   classes: [0]            # 默认只检测人类 (class 0)

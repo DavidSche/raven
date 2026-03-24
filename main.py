@@ -3,8 +3,8 @@ import time
 import numpy as np
 import torch
 from core.pipeline.manager import PipelineManager
-from core.pipeline.pipeline_config import PipelineConfig
-from core.config_manager import ConfigManager
+from core.config_manager import ConfigManager, PipelineConfig
+from core.logger import setup_logging, get_logger
 from core.logger import setup_logging, get_logger
 
 log = get_logger("main")
@@ -46,7 +46,7 @@ def main():
         pass
 
     manager = PipelineManager()
-    manager.add_rtsp("main", source, PipelineConfig.from_global_config())
+    manager.add_rtsp("main", source, ConfigManager.get_config().pipeline)
     pipeline = manager.get_single_pipeline()
     
     log.success("Human Detection System v2 (Production Ready)")

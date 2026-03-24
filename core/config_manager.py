@@ -42,14 +42,18 @@ class SystemConfig(BaseModel):
     source: str = "0" # Default to webcam
     port:int =8000
 
-class PipelineRuntimeConfig(BaseModel):
+class PipelineConfig(BaseModel):
     """Pipeline 运行时配置，对应 config/settings.yaml 中的 pipeline: 节。"""
+    # ===== AI 能力开关 =====
     enable_detector: bool = True
     enable_tracker: bool = True
     enable_verifier: bool = True
+
+   # ===== 帧队列策略 =====
     drop_frames: bool = True
     frame_queue_size: int = Field(ge=1, le=32, default=2)
     result_queue_size: int = Field(ge=1, le=16, default=1)
+    # ===== RTSP 重连策略 =====
     reconnect: bool = True
     max_retries: int = -1  # -1 = 无限重试
 
@@ -59,7 +63,7 @@ class GlobalConfig(BaseModel):
     verifier: VerifierConfig
     system: SystemConfig
     logging: LoggingConfig = LoggingConfig()
-    pipeline: PipelineRuntimeConfig = PipelineRuntimeConfig()
+    pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
 
 class ConfigManager:
     _config: GlobalConfig = None

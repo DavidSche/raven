@@ -7,10 +7,12 @@ MultiStreamPipeline — 多路 Pipeline 线程安全容器
   - 维护 stream_id → AsyncPipeline 映射
   - 线程安全地执行 add / remove / stop_all 操作
 """
+import time
+
 import threading
 from typing import Dict, Optional
 from core.pipeline.async_pipeline import AsyncPipeline
-from core.pipeline.pipeline_config import PipelineConfig
+from core.config_manager import PipelineConfig
 from core.logger import get_logger
 
 log = get_logger("multi-stream")
@@ -64,6 +66,7 @@ class MultiStreamPipeline:
 
             log.info(f"[多流] 移除流: {stream_id}")
             pipeline.stop()
+            time.sleep(0.2)  # 等待底层资源完全释放
             del self.pipelines[stream_id]
             log.success(f"[多流] 流已移除: {stream_id}")
             return True
@@ -84,5 +87,7 @@ class MultiStreamPipeline:
             for sid, pipeline in list(self.pipelines.items()):
                 log.info(f"[多流] 停止: {sid}")
                 pipeline.stop()
+
+            time.sleep(0.2)
             self.pipelines.clear()
         log.success("[多流] 所有流已停止")

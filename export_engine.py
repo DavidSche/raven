@@ -1,6 +1,6 @@
 from ultralytics import YOLO
 
-model = YOLO("models/yolo26s.pt")
+model = YOLO("models/yolov8s.pt")
 
 model.export(
     format="engine",

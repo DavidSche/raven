@@ -1,3 +1,12 @@
+"""
+core/ai/detector.py
+
+检测器模块，负责处理视频流中的目标检测。
+支持 YOLO 基于模型，支持 .pt / .onnx / .engine 模型格式。
+支持 GPU 加速推理。
+如果运行在非NVIDIA GPU 上，将使用 CPU 推理,需要修改它的实现。
+
+"""
 import time
 
 from ultralytics import YOLO
