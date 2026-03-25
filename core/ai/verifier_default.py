@@ -13,7 +13,9 @@ from core.logger import get_logger, TraceSampler
 
 log = get_logger("verifier")
 
-class HumanVerifier:
+from core.ai.base_verifier import BaseVerifier
+
+class DefaultVerifier(BaseVerifier):
     """
     基于 bbox 中心点位移方差的轻量活体检测器。
     完全移除 MediaPipe Pose，用 bbox 中心点轨迹替代，CPU 占用极低，无内部状态累积。
@@ -27,7 +29,7 @@ class HumanVerifier:
             history_size: Number of frames to track for variance calculation
             threshold: Variance threshold for liveness detection
         """
-        log.info("[活体验证] >>> 初始化 HumanVerifier")
+        log.info("[活体验证] >>> 初始化 DefaultVerifier")
         
         self.cfg = ConfigManager.get_config().verifier
         self.history_size = history_size or self.cfg.history_size

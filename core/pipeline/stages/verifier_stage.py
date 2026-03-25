@@ -1,6 +1,7 @@
 from core.config_manager import ConfigManager
 from core.pipeline.stages.base import PipelineStage
-from core.ai.verifier import HumanVerifier
+from core.ai.base_verifier import BaseVerifier
+from core.ai.verifier_default import DefaultVerifier
 
 def _nms_detections(detections: list, iou_threshold: float = 0.6) -> list:
     if len(detections) <= 1:
@@ -35,7 +36,7 @@ class VerifierStage(PipelineStage):
     """
     def __init__(self, enable_verifier=True):
         self.enable_verifier = enable_verifier
-        self.verifier = HumanVerifier() if enable_verifier else None
+        self.verifier: BaseVerifier = DefaultVerifier() if enable_verifier else None
         self.cfg = ConfigManager.get_config().verifier
 
     def process(self, data: dict) -> dict:
@@ -52,8 +53,26 @@ class VerifierStage(PipelineStage):
             )
 
             for i, box in enumerate(results.boxes):
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                track_id = int(box.id[0].cpu().numpy()) if box.id is not None else i
+                # 兼容 Tensor 和 Native 集合
+                xyxy = box.xyxy[0]
+                if hasattr(xyxy, 'cpu'): xyxy = xyxy.cpu().numpy()
+                x1, y1, x2, y2 = xyxy
+
+                track_id = i
+                if box.id is not None:
+                    tid = box.id[0]
+                    if hasattr(tid, 'item'):
+                        track_id = int(tid.item())
+                    else:
+                        track_id = int(tid)
+
+                # conf 提取
+                conf_val = box.conf[0]
+                if hasattr(conf_val, 'item'):
+                    conf = float(conf_val.item())
+                else:
+                    conf = float(conf_val)
+
                 mask_points = masks[i] if masks is not None and i < len(masks) else None
 
                 # 执行活体验证（若被启用）
@@ -67,7 +86,7 @@ class VerifierStage(PipelineStage):
                 processed.append({
                     "bbox": [x1, y1, x2, y2],
                     "id": track_id,
-                    "conf": float(box.conf[0].cpu().numpy()),
+                    "conf": conf,
                     "is_live": is_live,
                     "mask": mask_points,
                 })

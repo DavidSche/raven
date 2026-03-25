@@ -9,7 +9,8 @@ import threading
 import time
 from queue import Queue, Empty
 from core.config_manager import ConfigManager, PipelineConfig
-from core.rtsp.reader import RtspReader
+from core.rtsp.base_reader import BaseReader
+from core.rtsp.reader_opencv import OpenCVReader
 
 from core.pipeline.stages.detector_stage import DetectorStage
 from core.pipeline.stages.tracker_stage import TrackerStage
@@ -40,8 +41,8 @@ class AsyncPipeline:
         self.processed_frames    = 0
         self._last_inference_time = 0.0
 
-        # ── RTSP Reader 处理网络、解码与重连 ──
-        self.reader = RtspReader(
+        # ── 读流器 ──
+        self.reader: BaseReader = OpenCVReader(
             video_source=self.video_source,
             frame_queue=self.frame_queue,
             drop_frames=self.cfg_runtime.drop_frames,

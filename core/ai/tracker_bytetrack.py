@@ -10,14 +10,16 @@ from core.logger import get_logger, TraceSampler
 
 log = get_logger("tracker")
 
-class HumanTracker:
+from core.ai.base_tracker import BaseTracker
+
+class ByteTracker(BaseTracker):
     """
     Multi-object tracker using ByteTrack algorithm.
     Maintains consistent object IDs across frames.
     """
     
     def __init__(self):
-        log.info("[跟踪器] >>> 初始化 HumanTracker")
+        log.info("[跟踪器] >>> 初始化 ByteTracker")
         self.cfg = ConfigManager.get_config().tracker
         self._frame_count = 0
         log.debug(f"[跟踪器] 参数: type={self.cfg.type}, conf={self.cfg.conf}, persist={self.cfg.persist}")

@@ -1,4 +1,5 @@
-from core.ai.detector import HumanDetector
+from core.ai.base_detector import BaseDetector
+from core.ai.detector_nvidia import NvidiaDetector
 from core.logger import get_logger
 import threading
 
@@ -9,15 +10,15 @@ class ModelRegistry:
     解决多路路流引发的显存（VRAM）爆炸问题，所有的流共享一个底层推理引擎。
     """
     
-    _detector = None
+    _detector: BaseDetector = None
     _lock = threading.Lock()
     
     @classmethod
-    def get_detector(cls):
+    def get_detector(cls) -> BaseDetector:
         # 典型的 DCL (Double-Checked Locking) 单例模式
         if cls._detector is None:
             with cls._lock:
                 if cls._detector is None:
                     log.info("[模型注册] 初始化全局共享 Detector (单实例)")
-                    cls._detector = HumanDetector()
+                    cls._detector = NvidiaDetector()
         return cls._detector

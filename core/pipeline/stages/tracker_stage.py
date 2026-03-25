@@ -1,5 +1,6 @@
 from core.pipeline.stages.base import PipelineStage
-from core.ai.tracker import HumanTracker
+from core.ai.base_tracker import BaseTracker
+from core.ai.tracker_bytetrack import ByteTracker
 from core.ai.model_registry import ModelRegistry
 
 class TrackerStage(PipelineStage):
@@ -8,7 +9,7 @@ class TrackerStage(PipelineStage):
     但它需要借用探测器以做 fallback tracking，所以仍从全局引 detector 工具人实例。
     """
     def __init__(self):
-        self.tracker = HumanTracker()
+        self.tracker: BaseTracker = ByteTracker()
         self.detector = ModelRegistry.get_detector()
 
     def process(self, data: dict) -> dict:

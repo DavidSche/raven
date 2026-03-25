@@ -1,2 +1,2 @@
-__all__ = ["RtspReader", "StreamState"]
-from core.rtsp.reader import RtspReader, StreamState
+__all__ = ["OpenCVReader", "StreamState"]
+from core.rtsp.reader_opencv import OpenCVReader, StreamState
