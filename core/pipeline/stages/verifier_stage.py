@@ -1,7 +1,8 @@
+from core.config_manager import ConfigManager
 from core.pipeline.stages.base import PipelineStage
 from core.ai.verifier import HumanVerifier
 
-def _nms_detections(detections: list, iou_threshold: float = 0.5) -> list:
+def _nms_detections(detections: list, iou_threshold: float = 0.6) -> list:
     if len(detections) <= 1:
         return detections
 
@@ -35,6 +36,7 @@ class VerifierStage(PipelineStage):
     def __init__(self, enable_verifier=True):
         self.enable_verifier = enable_verifier
         self.verifier = HumanVerifier() if enable_verifier else None
+        self.cfg = ConfigManager.get_config().verifier
 
     def process(self, data: dict) -> dict:
         frame = data["frame"]
@@ -71,7 +73,7 @@ class VerifierStage(PipelineStage):
                 })
         
         # 去重
-        processed = _nms_detections(processed, iou_threshold=0.5)
+        processed = _nms_detections(processed, iou_threshold=self.cfg.iou_threshold)
         
         # 丢弃原生 results 对象，转为标准化的 detections
         data["detections"] = processed

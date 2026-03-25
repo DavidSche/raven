@@ -12,7 +12,7 @@ import time
 from ultralytics import YOLO
 import torch
 from core.config_manager import ConfigManager
-from core.logger import get_logger
+from core.logger import get_logger, TraceSampler
 
 log = get_logger("detector")
 
@@ -63,7 +63,10 @@ class HumanDetector:
 
     def detect(self, frame):
         """执行单帧推理（用于预热和独立检测）。"""
-        log.trace("[推理执行] >>> 开始推理")
+        should_trace = TraceSampler.get_instance().should_log("detector")
+        
+        if should_trace:
+            log.trace("[推理执行] >>> 开始推理")
         start = time.time()
         try:
             results = self.model.predict(
@@ -75,8 +78,9 @@ class HumanDetector:
             )
             num_detections = len(results[0].boxes) if results[0].boxes is not None else 0
             end = time.time()
-            log.trace(f"耗时: {end - start}")
-            log.trace(f"[推理执行] <<< 推理完成 | 检测数={num_detections}")
+            
+            if should_trace:
+                log.trace(f"[推理执行] <<< 推理完成 | 检测数={num_detections},耗时: {end - start}")
             return results[0]
         except Exception as e:
             log.error(f"[推理执行] <<< 推理异常: {e}")

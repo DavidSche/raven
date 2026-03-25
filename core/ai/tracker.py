@@ -6,7 +6,7 @@ core/ai/tracker.py
 """
 
 from core.config_manager import ConfigManager
-from core.logger import get_logger
+from core.logger import get_logger, TraceSampler
 
 log = get_logger("tracker")
 
@@ -26,7 +26,10 @@ class HumanTracker:
     def update(self, detector, frame):
         """Updates the tracker with a new frame."""
         self._frame_count += 1
-        log.trace(f"[跟踪执行] >>> 开始跟踪 | 帧计数={self._frame_count}")
+        should_trace = TraceSampler.get_instance().should_log("tracker")
+        
+        if should_trace:
+            log.trace(f"[跟踪执行] >>> 开始跟踪 | 帧计数={self._frame_count}")
         
         try:
             cfg = ConfigManager.get_config()
@@ -40,7 +43,8 @@ class HumanTracker:
             
             if results and len(results) > 0:
                 track_count = len(results[0].boxes) if results[0].boxes is not None else 0
-                log.trace(f"[跟踪执行] <<< 跟踪完成 | 跟踪目标数={track_count}")
+                if should_trace:
+                    log.trace(f"[跟踪执行] <<< 跟踪完成 | 跟踪目标数={track_count}")
             
             return results[0] if results else None
         except Exception as e:

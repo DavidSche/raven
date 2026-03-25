@@ -4,8 +4,7 @@ import numpy as np
 import torch
 from core.pipeline.manager import PipelineManager
 from core.config_manager import ConfigManager, PipelineConfig
-from core.logger import setup_logging, get_logger
-from core.logger import setup_logging, get_logger
+from core.logger import setup_logging, get_logger, init_trace_sampler
 
 log = get_logger("main")
 
@@ -32,6 +31,11 @@ def main():
         rotation=cfg.logging.file.rotation,
         retention=cfg.logging.file.retention,
         compression=cfg.logging.file.compression,
+    )
+    
+    init_trace_sampler(
+        enabled=cfg.logging.trace.enabled,
+        sample_interval=cfg.logging.trace.sample_interval,
     )
     
     log.info(f"[主程序] 配置加载完成 | model={cfg.model.path} | imgsz={cfg.model.imgsz}")

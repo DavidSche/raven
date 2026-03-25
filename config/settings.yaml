@@ -20,6 +20,7 @@ tracker:
 verifier:
   history_size: 15    # 活体检测滑动窗口大小
   threshold: 0.00005  # bbox 中心点位移方差阈值（轻量模式，无 MediaPipe 依赖）
+  iou_threshold: 0.6  # NMS IoU 阈值
 
 system:
   source: "rtsp://admin:test667788@192.168.150.133:554/video1"
@@ -38,6 +39,9 @@ logging:
   performance:
     log_fps_interval: 30
     log_inference_time: true
+  trace:
+    enabled: true           # 是否启用 trace 日志采样
+    sample_interval: 30     # 采样间隔（每 N 帧输出一次）
 
 pipeline:
   # AI 能力开关（单路默认值，多路时可在代码中按路覆盖）

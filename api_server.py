@@ -8,11 +8,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPExcept
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from core.pipeline import AsyncPipeline
-from core.pipeline import AsyncPipeline
 from core.pipeline.manager import PipelineManager
 from core.config_manager import ConfigManager, PipelineConfig
-from core.logger import setup_logging, get_logger
+from core.logger import setup_logging, get_logger, init_trace_sampler
 import uvicorn
 import asyncio
 
@@ -41,6 +39,11 @@ async def lifespan(app: FastAPI):
         rotation=cfg.logging.file.rotation,
         retention=cfg.logging.file.retention,
         compression=cfg.logging.file.compression,
+    )
+    
+    init_trace_sampler(
+        enabled=cfg.logging.trace.enabled,
+        sample_interval=cfg.logging.trace.sample_interval,
     )
     
     # 视频流

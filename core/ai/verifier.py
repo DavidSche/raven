@@ -9,7 +9,7 @@ core/ai/verifier.py
 import numpy as np
 from collections import deque
 from core.config_manager import ConfigManager
-from core.logger import get_logger
+from core.logger import get_logger, TraceSampler
 
 log = get_logger("verifier")
 
@@ -53,7 +53,10 @@ class HumanVerifier:
         Returns:
             tuple: (is_live: bool, variance: float)
         """
-        log.trace(f"[活体验证] >>> 验证目标 | track_id={track_id}")
+        should_trace = TraceSampler.get_instance().should_log("verifier")
+        
+        if should_trace:
+            log.trace(f"[活体验证] >>> 验证目标 | track_id={track_id}")
         
         x1, y1, x2, y2 = bbox
         h, w = frame.shape[:2]
@@ -61,13 +64,11 @@ class HumanVerifier:
             log.warning(f"[活体验证] 帧尺寸无效: w={w}, h={h}")
             return False, 0
 
-        # 计算 bbox 中心点 (归一化坐标)
         cx = ((x1 + x2) / 2) / w
         cy = ((y1 + y2) / 2) / h
 
         self._frame_count += 1
 
-        # 初始化新目标的轨迹历史
         if track_id not in self.history:
             self.history[track_id] = deque(maxlen=self.history_size)
             log.debug(f"[活体验证] 新目标加入跟踪 | track_id={track_id}")
@@ -75,7 +76,6 @@ class HumanVerifier:
         self.history[track_id].append((cx, cy))
         self._last_seen[track_id] = self._frame_count
 
-        # 定期清理过期目标，防止内存泄漏
         if self._frame_count % self._cleanup_interval == 0:
             stale = [tid for tid, last in self._last_seen.items()
                      if self._frame_count - last > self._cleanup_interval * 2]
@@ -85,20 +85,19 @@ class HumanVerifier:
             if stale:
                 log.info(f"[活体验证] 清理过期目标 | 数量={len(stale)} | track_ids={stale}")
 
-        # 历史帧不足时无法判断
         if len(self.history[track_id]) < self.history_size:
-            log.trace(f"[活体验证] <<< 历史帧不足 | track_id={track_id} | frames={len(self.history[track_id])}/{self.history_size}")
+            if should_trace:
+                log.trace(f"[活体验证] <<< 历史帧不足 | track_id={track_id} | frames={len(self.history[track_id])}/{self.history_size}")
             return False, 0
 
-        # 计算轨迹方差
         coords = np.array(self.history[track_id])
         variance = np.var(coords, axis=0).mean()
         
-        # 方差大于阈值判定为活体
         is_live = variance > self.threshold
         status = "活体" if is_live else "静态"
         
-        log.trace(f"[活体验证] <<< 验证完成 | track_id={track_id} | variance={variance:.6f} | 结果={status}")
+        if should_trace:
+            log.trace(f"[活体验证] <<< 验证完成 | track_id={track_id} | variance={variance:.6f} | 结果={status}")
         
         return is_live, variance
 

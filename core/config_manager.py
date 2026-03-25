@@ -14,11 +14,16 @@ class LoggingPerformanceConfig(BaseModel):
     log_fps_interval: int = 30
     log_inference_time: bool = True
 
+class TraceConfig(BaseModel):
+    enabled: bool = True
+    sample_interval: int = Field(ge=1, default=30, description="trace 日志采样间隔（帧数）")
+
 class LoggingConfig(BaseModel):
     level: str = "INFO"
     console_enabled: bool = True
     file: LoggingFileConfig = LoggingFileConfig()
     performance: LoggingPerformanceConfig = LoggingPerformanceConfig()
+    trace: TraceConfig = TraceConfig()
 
 class ModelConfig(BaseModel):
     path: str
@@ -36,6 +41,7 @@ class TrackerConfig(BaseModel):
 class VerifierConfig(BaseModel):
     history_size: int = Field(ge=2, le=300, description="活体检测滑动窗口大小")
     threshold: float = Field(ge=0.0, description="位移方差阈值")
+    iou_threshold:float=  Field(ge=0.6, description="NMS IoU 阈值")
 
 class SystemConfig(BaseModel):
     show_ui: bool
@@ -56,6 +62,7 @@ class PipelineConfig(BaseModel):
     # ===== RTSP 重连策略 =====
     reconnect: bool = True
     max_retries: int = -1  # -1 = 无限重试
+
 
 class GlobalConfig(BaseModel):
     model: ModelConfig
